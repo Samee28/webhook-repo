@@ -240,16 +240,7 @@ For production deployment:
 - The UI polls the API every 15 seconds for new events
 - Only Push, Pull Request (open), and Merge events are tracked
 
-## 👨‍💻 Development
-
-This project was created as part of a developer assessment task focusing on:
-- GitHub webhook integration
-- MongoDB data storage
-- Real-time UI updates
-- RESTful API design
-
----
 
 **Repository Links:**
 - **webhook-repo**: (this repository)
-- **action-repo**: (your test repository for triggering webhooks)
+- **action-repo**: https://github.com/Samee28/action-repo
