@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Webhook Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pulse {
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .event-count {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .events-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            min-height: 400px;
+        }
+
+        .events-list {
+            list-style: none;
+        }
+
+        .event-item {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.3s ease;
+            animation: slideIn 0.5s ease;
+        }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .event-action {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .event-action.push {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .event-action.pull_request {
+            background-color: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .event-action.merge {
+            background-color: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .event-message {
+            font-size: 1.1em;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .event-timestamp {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .no-events {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .no-events-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 GitHub Webhook Monitor</h1>
+            <p class="subtitle">Real-time tracking of repository activities</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="pulse"></div>
+                <span>Auto-refreshing every 15 seconds</span>
+            </div>
+            <div class="event-count" id="eventCount">Loading...</div>
+        </div>
+
+        <div id="errorMessage"></div>
+
+        <div class="events-container">
+            <div id="eventsContent">
+                <div class="loading">Loading events...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let eventCount = 0;
+
+        // Format timestamp in a readable format
+        function formatTimestamp(isoString) {
+            const date = new Date(isoString);
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'UTC',
+                timeZoneName: 'short'
+            };
+            return date.toLocaleString('en-US', options);
+        }
+
+        // Format ordinal suffix for day (1st, 2nd, 3rd, etc.)
+        function getOrdinalSuffix(day) {
+            if (day > 3 && day < 21) return 'th';
+            switch (day % 10) {
+                case 1: return 'st';
+                case 2: return 'nd';
+                case 3: return 'rd';
+                default: return 'th';
+            }
+        }
+
+        // Format timestamp as specified in the requirements
+        function formatCustomTimestamp(isoString) {
+            const date = new Date(isoString);
+            const day = date.getUTCDate();
+            const month = date.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+            const year = date.getUTCFullYear();
+            const time = date.toLocaleString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true,
+                timeZone: 'UTC'
+            });
+            
+            return `${day}${getOrdinalSuffix(day)} ${month} ${year} - ${time} UTC`;
+        }
+
+        // Generate event message based on action type
+        function generateEventMessage(event) {
+            const timestamp = formatCustomTimestamp(event.timestamp);
+            
+            switch(event.action) {
+                case 'push':
+                    return `"${event.author}" pushed to "${event.to_branch}" on ${timestamp}`;
+                case 'pull_request':
+                    return `"${event.author}" submitted a pull request from "${event.from_branch}" to "${event.to_branch}" on ${timestamp}`;
+                case 'merge':
+                    return `"${event.author}" merged branch "${event.from_branch}" to "${event.to_branch}" on ${timestamp}`;
+                default:
+                    return 'Unknown event type';
+            }
+        }
+
+        // Fetch and display events
+        async function fetchEvents() {
+            try {
+                const response = await fetch('/webhook/events');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch events');
+                }
+                
+                const events = await response.json();
+                eventCount = events.length;
+                
+                document.getElementById('eventCount').textContent = 
+                    `${eventCount} event${eventCount !== 1 ? 's' : ''} tracked`;
+                
+                displayEvents(events);
+                clearError();
+                
+            } catch (error) {
+                console.error('Error fetching events:', error);
+                showError('Failed to fetch events. Please check your connection and MongoDB setup.');
+            }
+        }
+
+        // Display events in the UI
+        function displayEvents(events) {
+            const eventsContent = document.getElementById('eventsContent');
+            
+            if (events.length === 0) {
+                eventsContent.innerHTML = `
+                    <div class="no-events">
+                        <div class="no-events-icon">📭</div>
+                        <h3>No events yet</h3>
+                        <p>Waiting for webhook events from your GitHub repository...</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const eventsList = events.map(event => `
+                <li class="event-item">
+                    <div class="event-action ${event.action}">${event.action.replace('_', ' ')}</div>
+                    <div class="event-message">${generateEventMessage(event)}</div>
+                </li>
+            `).join('');
+            
+            eventsContent.innerHTML = `<ul class="events-list">${eventsList}</ul>`;
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // Clear error message
+        function clearError() {
+            document.getElementById('errorMessage').innerHTML = '';
+        }
+
+        // Initial fetch
+        fetchEvents();
+
+        // Poll every 15 seconds
+        setInterval(fetchEvents, 15000);
+    </script>
+</body>
+</html>
